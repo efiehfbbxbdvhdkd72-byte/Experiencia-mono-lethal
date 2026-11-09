@@ -1,0 +1,989 @@
+--[========================================================--
+--     PERSONAL THINGS - RAYFIELD UI (ANTI-LAG V3.2)       --
+--       Speed + Inf Jump + Instant Prompt + Rainbow ESP   --
+--[========================================================--
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local player = Players.LocalPlayer
+
+-- Obtener el nombre del juego mediante su ID (117713779364528)
+local gameId = 117713779364528
+local gameTitle = "Personal things" -- Nombre por defecto si falla la petición
+
+local success, info = pcall(function()
+    return MarketplaceService:GetProductInfo(gameId)
+end)
+
+if success and info and info.Name then
+    gameTitle = info.Name
+end
+
+-- Crear ventana principal con Rayfield usando el nombre del juego
+local Window = Rayfield:CreateWindow({
+   Name = gameTitle,
+   LoadingTitle = gameTitle .. " Script",
+   LoadingSubtitle = "by matzaa (Ultra Anti-Lag V3.2)",
+   ConfigurationSaving = { Enabled = false },
+   Discord = { Enabled = false },
+   KeySystem = false,
+})
+
+-- Función para actualizar dinámicamente el nombre de la ventana si cambia en el juego
+task.spawn(function()
+    while true do
+        local currentName = ""
+        local s, res = pcall(function()
+            return MarketplaceService:GetProductInfo(gameId)
+        end)
+        if s and res and res.Name then
+            currentName = res.Name
+        else
+            currentName = tostring(Workspace.Name) -- Respaldo por si cambian el nombre del Workspace
+        end
+        
+        task.wait(10)
+    end
+end)
+
+-- Pestañas principales
+local MainTab = Window:CreateTab("Principal", 4483362458)
+local ESPTab = Window:CreateTab("ESP & Visión", 4483362458)
+local ESPItemsTab = Window:CreateTab("ESP Objetos", 4483362458)
+local ListsTab = Window:CreateTab("Listas Servidor", 4483362458)
+
+-- Variables de Estado - Movimiento
+local MIN_SPEED = 16
+local MAX_SPEED = 500
+local currentSpeed = MIN_SPEED
+local infiniteJumpEnabled = false
+local unlockCameraEnabled = false
+local customMaxZoom = 1000
+local instantPromptEnabled = false
+
+-- Variables de Estado - ESP General
+local espEnabled = false
+local espPlayerNamesEnabled = false
+local espNpcEnabled = false
+local espNpcNamesEnabled = false
+
+local espSelectedPlayersEnabled = false
+local espSelectedPlayersNamesEnabled = false
+local espSelectedNpcsEnabled = false
+local espSelectedNpcsNamesEnabled = false
+
+-- Variables de Estado - ESP Objetos
+local espItemsEnabled = false
+local espItemNamesEnabled = false
+local itemKeywords = {"oro", "gold", "diamond", "diamante", "coin", "moneda", "item", "drop", "chest", "cofre", "gem", "gema", "money", "cash", "loot", "puertas", "key", "llave"}
+
+local selectedPlayers = {}
+local selectedNpcs = {}
+
+-- Carpeta contenedora de ESP
+local espFolder = Instance.new("Folder")
+espFolder.Name = "ESPFanFolder"
+espFolder.Parent = CoreGui or player:WaitForChild("PlayerGui")
+
+local function getHumanoid()
+	local character = player.Character
+	return character and character:FindFirstChildOfClass("Humanoid")
+end
+
+local function applySpeed(speed)
+	currentSpeed = math.clamp(speed, MIN_SPEED, MAX_SPEED)
+end
+
+-- Bucle de Velocidad
+RunService.Heartbeat:Connect(function()
+	local humanoid = getHumanoid()
+	if humanoid and humanoid.WalkSpeed ~= currentSpeed then
+		humanoid.WalkSpeed = currentSpeed
+	end
+end)
+
+-- Bucle de Infinite Jump
+UserInputService.JumpRequest:Connect(function()
+	if infiniteJumpEnabled then
+		local humanoid = getHumanoid()
+		if humanoid then
+			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		end
+	end
+end)
+
+-- Bucle de Desbloqueo de Cámara
+RunService.RenderStepped:Connect(function()
+	if unlockCameraEnabled then
+		player.CameraMaxZoomDistance = customMaxZoom
+		player.CameraMinZoomDistance = 0.5
+		if player.CameraMode == Enum.CameraMode.LockFirstPerson then
+			player.CameraMode = Enum.CameraMode.Classic
+		end
+	end
+end)
+
+--[========================================================--
+--                    PESTAÑA PRINCIPAL                    --
+--[========================================================--
+
+MainTab:CreateSection("Movimiento")
+
+MainTab:CreateSlider({
+   Name = "Velocidad de Movimiento",
+   Range = {16, 500},
+   Increment = 1,
+   CurrentValue = 16,
+   Flag = "SpeedSlider",
+   Callback = function(Value) applySpeed(Value) end,
+})
+
+MainTab:CreateInput({
+   Name = "Velocidad exacta (TextBox)",
+   PlaceholderText = "Escribe velocidad...",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      local num = tonumber(Text)
+      if num then applySpeed(num) end
+   end,
+})
+
+MainTab:CreateButton({
+   Name = "Restaurar Velocidad (16)",
+   Callback = function() applySpeed(16) end,
+})
+
+MainTab:CreateSection("Utilidades")
+
+MainTab:CreateToggle({
+   Name = "Infinite Jump",
+   CurrentValue = false,
+   Flag = "InfJump",
+   Callback = function(Value) infiniteJumpEnabled = Value end,
+})
+
+MainTab:CreateToggle({
+   Name = "Interactuar rápido (Instant ProximityPrompt)",
+   CurrentValue = false,
+   Flag = "InstantPrompt",
+   Callback = function(Value)
+      instantPromptEnabled = Value
+      task.spawn(function()
+         while instantPromptEnabled do
+            for _, desc in ipairs(Workspace:GetDescendants()) do
+               if desc:IsA("ProximityPrompt") then
+                  desc.HoldDuration = 0
+               end
+            end
+            task.wait(1)
+         end
+      end)
+   end,
+})
+
+-- Botón para ejecutar el Fly Mono Letal desde Rayfield
+MainTab:CreateButton({
+   Name = "Fly Mono Letal 🐒💀",
+   Callback = function()
+      local Client = Players.LocalPlayer
+
+      -- Evitar duplicados si ya se ejecutó antes
+      if CoreGui:FindFirstChild("MonoLetalFlyGui") then
+          CoreGui.MonoLetalFlyGui:Destroy()
+      end
+
+      local screenGui = Instance.new("ScreenGui")
+      screenGui.Name = "MonoLetalFlyGui"
+      screenGui.Parent = CoreGui
+
+      -- Ventana principal flotante
+      local mainFrame = Instance.new("Frame")
+      mainFrame.Size = UDim2.new(0, 220, 0, 185)
+      mainFrame.Position = UDim2.new(0.1, 0, 0.2, 0)
+      mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+      mainFrame.BorderSizePixel = 0
+      mainFrame.Active = true
+      mainFrame.Draggable = true
+      mainFrame.Parent = screenGui
+
+      local corner = Instance.new("UICorner")
+      corner.CornerRadius = UDim.new(0, 8)
+      corner.Parent = mainFrame
+
+      -- Borde del menú (UIStroke)
+      local stroke = Instance.new("UIStroke")
+      stroke.Thickness = 2
+      stroke.Parent = mainFrame
+
+      -- Efecto de borde arcoíris animado para la ventana principal
+      task.spawn(function()
+          while stroke and stroke.Parent do
+              for i = 0, 1, 0.005 do
+                  if not stroke or not stroke.Parent then break end
+                  stroke.Color = Color3.fromHSV(i, 1, 1)
+                  RunService.RenderStepped:Wait()
+              end
+          end
+      end)
+
+      -- Barra superior
+      local topBar = Instance.new("Frame")
+      topBar.Size = UDim2.new(1, 0, 0, 30)
+      topBar.BackgroundTransparency = 1
+      topBar.Parent = mainFrame
+
+      local titleLabel = Instance.new("TextLabel")
+      titleLabel.Size = UDim2.new(1, -60, 1, 0)
+      titleLabel.Position = UDim2.new(0, 10, 0, 0)
+      titleLabel.BackgroundTransparency = 1
+      titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+      titleLabel.TextSize = 13
+      titleLabel.Font = Enum.Font.GothamBold
+      titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+      titleLabel.Text = "Fly Mono Letal🐒💀"
+      titleLabel.Parent = topBar
+
+      -- Botón Cerrar (X) -> Abre el botón flotante Delta
+      local closeButton = Instance.new("TextButton")
+      closeButton.Size = UDim2.new(0, 25, 0, 25)
+      closeButton.Position = UDim2.new(1, -30, 0, 3)
+      closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+      closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+      closeButton.TextSize = 12
+      closeButton.Font = Enum.Font.GothamBold
+      closeButton.Text = "X"
+      closeButton.Parent = topBar
+
+      local closeCorner = Instance.new("UICorner")
+      closeCorner.CornerRadius = UDim.new(0, 4)
+      closeCorner.Parent = closeButton
+
+      -- Botón Minimizar (-)
+      local minimizeButton = Instance.new("TextButton")
+      minimizeButton.Size = UDim2.new(0, 25, 0, 25)
+      minimizeButton.Position = UDim2.new(1, -58, 0, 3)
+      minimizeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+      minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+      minimizeButton.TextSize = 14
+      minimizeButton.Font = Enum.Font.GothamBold
+      minimizeButton.Text = "-"
+      minimizeButton.Parent = topBar
+
+      local minCorner = Instance.new("UICorner")
+      minCorner.CornerRadius = UDim.new(0, 4)
+      minCorner.Parent = minimizeButton
+
+      -- Contenedor del contenido interno
+      local contentContainer = Instance.new("Frame")
+      contentContainer.Size = UDim2.new(1, 0, 1, -30)
+      contentContainer.Position = UDim2.new(0, 0, 0, 30)
+      contentContainer.BackgroundTransparency = 1
+      contentContainer.Parent = mainFrame
+
+      -- Botón de Activar/Desactivar Vuelo (Fly)
+      local flyButton = Instance.new("TextButton")
+      flyButton.Size = UDim2.new(1, -20, 0, 32)
+      flyButton.Position = UDim2.new(0, 10, 0, 8)
+      flyButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+      flyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+      flyButton.TextSize = 14
+      flyButton.Font = Enum.Font.GothamSemibold
+      flyButton.Text = "Fly: OFF"
+      flyButton.Parent = contentContainer
+
+      local btnCorner = Instance.new("UICorner")
+      btnCorner.CornerRadius = UDim.new(0, 6)
+      btnCorner.Parent = flyButton
+
+      -- Control de velocidad de Fly
+      local speedTitle = Instance.new("TextLabel")
+      speedTitle.Size = UDim2.new(1, -20, 0, 18)
+      speedTitle.Position = UDim2.new(0, 10, 0, 43)
+      speedTitle.BackgroundTransparency = 1
+      speedTitle.TextColor3 = Color3.fromRGB(180, 180, 180)
+      speedTitle.TextSize = 11
+      speedTitle.Font = Enum.Font.Gotham
+      speedTitle.TextXAlignment = Enum.TextXAlignment.Left
+      speedTitle.Text = "Velocidad Fly:"
+      speedTitle.Parent = contentContainer
+
+      local speedMinus = Instance.new("TextButton")
+      speedMinus.Size = UDim2.new(0, 32, 0, 26)
+      speedMinus.Position = UDim2.new(0, 10, 0, 63)
+      speedMinus.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+      speedMinus.TextColor3 = Color3.fromRGB(255, 255, 255)
+      speedMinus.TextSize = 16
+      speedMinus.Font = Enum.Font.GothamBold
+      speedMinus.Text = "-"
+      speedMinus.Parent = contentContainer
+
+      local smCorner = Instance.new("UICorner")
+      smCorner.CornerRadius = UDim.new(0, 6)
+      smCorner.Parent = speedMinus
+
+      local speedDisplay = Instance.new("TextLabel")
+      speedDisplay.Size = UDim2.new(1, -104, 0, 26)
+      speedDisplay.Position = UDim2.new(0, 48, 0, 63)
+      speedDisplay.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+      speedDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
+      speedDisplay.TextSize = 13
+      speedDisplay.Font = Enum.Font.GothamBold
+      speedDisplay.Text = "50"
+      speedDisplay.Parent = contentContainer
+
+      local sdCorner = Instance.new("UICorner")
+      sdCorner.CornerRadius = UDim.new(0, 6)
+      sdCorner.Parent = speedDisplay
+
+      local speedPlus = Instance.new("TextButton")
+      speedPlus.Size = UDim2.new(0, 32, 0, 26)
+      speedPlus.Position = UDim2.new(1, -42, 0, 63)
+      speedPlus.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+      speedPlus.TextColor3 = Color3.fromRGB(255, 255, 255)
+      speedPlus.TextSize = 16
+      speedPlus.Font = Enum.Font.GothamBold
+      speedPlus.Text = "+"
+      speedPlus.Parent = contentContainer
+
+      local spCorner = Instance.new("UICorner")
+      spCorner.CornerRadius = UDim.new(0, 6)
+      spCorner.Parent = speedPlus
+
+      -- Botones Up y Down
+      local upButton = Instance.new("TextButton")
+      upButton.Size = UDim2.new(0.5, -15, 0, 26)
+      upButton.Position = UDim2.new(0, 10, 0, 93)
+      upButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+      upButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+      upButton.TextSize = 12
+      upButton.Font = Enum.Font.GothamBold
+      upButton.Text = "Up"
+      upButton.Parent = contentContainer
+
+      local upCorner = Instance.new("UICorner")
+      upCorner.CornerRadius = UDim.new(0, 6)
+      upCorner.Parent = upButton
+
+      local downButton = Instance.new("TextButton")
+      downButton.Size = UDim2.new(0.5, -15, 0, 26)
+      downButton.Position = UDim2.new(0.5, 5, 0, 93)
+      downButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+      downButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+      downButton.TextSize = 12
+      downButton.Font = Enum.Font.GothamBold
+      downButton.Text = "Down"
+      downButton.Parent = contentContainer
+
+      local downCorner = Instance.new("UICorner")
+      downCorner.CornerRadius = UDim.new(0, 6)
+      downCorner.Parent = downButton
+
+      -- Botones Noclip y Clip
+      local noclipButton = Instance.new("TextButton")
+      noclipButton.Size = UDim2.new(0.5, -15, 0, 26)
+      noclipButton.Position = UDim2.new(0, 10, 0, 123)
+      noclipButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+      noclipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+      noclipButton.TextSize = 12
+      noclipButton.Font = Enum.Font.GothamBold
+      noclipButton.Text = "Noclip: OFF"
+      noclipButton.Parent = contentContainer
+
+      local ncCorner = Instance.new("UICorner")
+      ncCorner.CornerRadius = UDim.new(0, 6)
+      ncCorner.Parent = noclipButton
+
+      local clipButton = Instance.new("TextButton")
+      clipButton.Size = UDim2.new(0.5, -15, 0, 26)
+      clipButton.Position = UDim2.new(0.5, 5, 0, 123)
+      clipButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+      clipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+      clipButton.TextSize = 12
+      clipButton.Font = Enum.Font.GothamBold
+      clipButton.Text = "Clip"
+      clipButton.Parent = contentContainer
+
+      local clipCorner = Instance.new("UICorner")
+      clipCorner.CornerRadius = UDim.new(0, 6)
+      clipCorner.Parent = clipButton
+
+      -- CREACIÓN DEL BOTÓN FLOTANTE ESTILO DELTA
+      local deltaButton = Instance.new("ImageButton")
+      deltaButton.Size = UDim2.new(0, 50, 0, 50)
+      deltaButton.Position = UDim2.new(0.05, 0, 0.1, 0)
+      deltaButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+      deltaButton.BorderSizePixel = 0
+      deltaButton.Active = true
+      deltaButton.Draggable = true
+      deltaButton.Visible = false
+      deltaButton.Image = "rbxassetid://11686948411"
+      deltaButton.Parent = screenGui
+
+      local deltaCorner = Instance.new("UICorner")
+      deltaCorner.CornerRadius = UDim.new(1, 0)
+      deltaCorner.Parent = deltaButton
+
+      local deltaStroke = Instance.new("UIStroke")
+      deltaStroke.Thickness = 2.5
+      deltaStroke.Parent = deltaButton
+
+      task.spawn(function()
+          while deltaStroke and deltaStroke.Parent do
+              for i = 0, 1, 0.005 do
+                  if not deltaStroke or not deltaStroke.Parent then break end
+                  deltaStroke.Color = Color3.fromHSV(i, 1, 1)
+                  RunService.RenderStepped:Wait()
+              end
+          end
+      end)
+
+      closeButton.MouseButton1Click:Connect(function()
+          mainFrame.Visible = false
+          deltaButton.Visible = true
+      end)
+
+      deltaButton.MouseButton1Click:Connect(function()
+          mainFrame.Visible = true
+          deltaButton.Visible = false
+      end)
+
+      local minimized = false
+      minimizeButton.MouseButton1Click:Connect(function()
+          minimized = not minimized
+          contentContainer.Visible = not minimized
+          if minimized then
+              mainFrame.Size = UDim2.new(0, 220, 0, 30)
+              minimizeButton.Text = "+"
+          else
+              mainFrame.Size = UDim2.new(0, 220, 0, 185)
+              minimizeButton.Text = "-"
+          end
+      end)
+
+      -- Variables de Vuelo y Noclip
+      local flying = false
+      local speed = 50
+      local bg, bv
+      local noclipActive = false
+
+      local movingUp = false
+      local movingDown = false
+
+      upButton.MouseButton1Down:Connect(function() movingUp = true end)
+      upButton.MouseButton1Up:Connect(function() movingUp = false end)
+      upButton.InputEnded:Connect(function(input)
+          if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+              movingUp = false
+          end
+      end)
+
+      downButton.MouseButton1Down:Connect(function() movingDown = true end)
+      downButton.MouseButton1Up:Connect(function() movingDown = false end)
+      downButton.InputEnded:Connect(function(input)
+          if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+              movingDown = false
+          end
+      end)
+
+      speedPlus.MouseButton1Click:Connect(function()
+          speed = speed + 10
+          speedDisplay.Text = tostring(speed)
+      end)
+
+      speedMinus.MouseButton1Click:Connect(function()
+          if speed > 10 then
+              speed = speed - 10
+              speedDisplay.Text = tostring(speed)
+          end
+      end)
+
+      noclipButton.MouseButton1Click:Connect(function()
+          noclipActive = true
+          noclipButton.BackgroundColor3 = Color3.fromRGB(0, 170, 127)
+          clipButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+      end)
+
+      clipButton.MouseButton1Click:Connect(function()
+          noclipActive = false
+          noclipButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+          clipButton.BackgroundColor3 = Color3.fromRGB(170, 50, 50)
+          
+          local character = Client.Character
+          if character then
+              for _, child in ipairs(character:GetDescendants()) do
+                  if child:IsA("BasePart") then
+                      child.CanCollide = true
+                  end
+              end
+          end
+      end)
+
+      RunService.Stepped:Connect(function()
+          if noclipActive then
+              local character = Client.Character
+              if character then
+                  for _, child in ipairs(character:GetDescendants()) do
+                      if child:IsA("BasePart") then
+                          child.CanCollide = false
+                      end
+                  end
+              end
+          end
+      end)
+
+      local controls = nil
+      pcall(function()
+          local playerScripts = Client:FindFirstChild("PlayerScripts")
+          if playerScripts then
+              local playerModule = require(playerScripts:WaitForChild("PlayerModule"))
+              controls = playerModule:GetControls()
+          end
+      end)
+
+      -- Lógica de Vuelo normal (Fly)
+      local function toggleFly()
+          flying = not flying
+          local character = Client.Character
+          if not character or not character:FindFirstChild("HumanoidRootPart") then 
+              flying = false
+              return 
+          end
+          
+          local rootPart = character.HumanoidRootPart
+          local humanoid = character:FindFirstChildOfClass("Humanoid")
+          
+          if flying then
+              flyButton.Text = "Fly: ON"
+              flyButton.BackgroundColor3 = Color3.fromRGB(0, 170, 127)
+              
+              if humanoid then humanoid.PlatformStand = true end
+              
+              bg = Instance.new("BodyGyro")
+              bg.P = 9e4
+              bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+              bg.CFrame = rootPart.CFrame
+              bg.Parent = rootPart
+              
+              bv = Instance.new("BodyVelocity")
+              bv.Velocity = Vector3.new(0, 0, 0)
+              bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+              bv.Parent = rootPart
+              
+              task.spawn(function()
+                  while flying and character and rootPart.Parent and humanoid do
+                      local camera = workspace.CurrentCamera
+                      local moveDirection = Vector3.new(0, 0, 0)
+                      
+                      if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                          moveDirection = moveDirection + camera.CFrame.LookVector
+                      end
+                      if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                          moveDirection = moveDirection - camera.CFrame.LookVector
+                      end
+                      if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                          moveDirection = moveDirection - camera.CFrame.RightVector
+                      end
+                      if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                          moveDirection = moveDirection + camera.CFrame.RightVector
+                      end
+                      
+                      if controls then
+                          local moveVector = controls:GetMoveVector()
+                          if moveVector.Magnitude > 0 then
+                              local camCF = camera.CFrame
+                              local cameraFlatLook = Vector3.new(camCF.LookVector.X, 0, camCF.LookVector.Z).Unit
+                              local cameraFlatRight = Vector3.new(camCF.RightVector.X, 0, camCF.RightVector.Z).Unit
+                              
+                              moveDirection = (cameraFlatLook * -moveVector.Z) + (cameraFlatRight * moveVector.X)
+                          end
+                      end
+                      
+                      local verticalVal = 0
+                      if movingUp then verticalVal = 1 end
+                      if movingDown then verticalVal = -1 end
+                      
+                      bg.CFrame = camera.CFrame
+                      bv.Velocity = (moveDirection * speed) + Vector3.new(0, verticalVal * speed, 0)
+                      RunService.RenderStepped:Wait()
+                  end
+              end)
+          else
+              flyButton.Text = "Fly: OFF"
+              flyButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+              movingUp = false
+              movingDown = false
+              
+              if humanoid then humanoid.PlatformStand = false end
+              if bg then bg:Destroy() end
+              if bv then bv:Destroy() end
+          end
+      end
+
+      flyButton.MouseButton1Click:Connect(toggleFly)
+   end,
+})
+
+MainTab:CreateSection("Cámara (Unlock 3rd Person View)")
+
+MainTab:CreateToggle({
+   Name = "Unlock 3rd Person View",
+   CurrentValue = false,
+   Flag = "UnlockCamToggle",
+   Callback = function(Value)
+      unlockCameraEnabled = Value
+      player.CameraMaxZoomDistance = Value and customMaxZoom or 12.8
+   end,
+})
+
+MainTab:CreateSlider({
+   Name = "Distancia Máxima de Zoom",
+   Range = {50, 5000},
+   Increment = 50,
+   CurrentValue = 1000,
+   Flag = "MaxZoomSlider",
+   Callback = function(Value)
+      customMaxZoom = Value
+      if unlockCameraEnabled then player.CameraMaxZoomDistance = Value end
+   end,
+})
+
+--[========================================================--
+--                    PESTAÑA ESP & VISIÓN                 --
+--[========================================================--
+
+ESPTab:CreateSection("Jugadores")
+ESPTab:CreateToggle({ Name = "ESP Arcoíris (Jugadores)", CurrentValue = false, Callback = function(V) espEnabled = V end })
+ESPTab:CreateToggle({ Name = "Nombres de Jugadores", CurrentValue = false, Callback = function(V) espPlayerNamesEnabled = V end })
+ESPTab:CreateToggle({ Name = "ESP Jugadores Seleccionados", CurrentValue = false, Callback = function(V) espSelectedPlayersEnabled = V end })
+ESPTab:CreateToggle({ Name = "Nombres J. Seleccionados", CurrentValue = false, Callback = function(V) espSelectedPlayersNamesEnabled = V end })
+
+ESPTab:CreateSection("NPCs y Monstruos")
+ESPTab:CreateToggle({ Name = "ESP NPCs General", CurrentValue = false, Callback = function(V) espNpcEnabled = V end })
+ESPTab:CreateToggle({ Name = "Nombres NPCs General", CurrentValue = false, Callback = function(V) espNpcNamesEnabled = V end })
+ESPTab:CreateToggle({ Name = "ESP NPCs Seleccionados", CurrentValue = false, Callback = function(V) espSelectedNpcsEnabled = V end })
+ESPTab:CreateToggle({ Name = "Nombres NPCs Seleccionados", CurrentValue = false, Callback = function(V) espSelectedNpcsNamesEnabled = V end })
+
+--[========================================================--
+--                  PESTAÑA ESP OBJETOS                    --
+--[========================================================--
+
+ESPItemsTab:CreateSection("Filtro de Ítems / Oro / Diamantes")
+
+ESPItemsTab:CreateToggle({
+   Name = "Activar ESP de Objetos Tirados",
+   CurrentValue = false,
+   Callback = function(Value) espItemsEnabled = Value end,
+})
+
+ESPItemsTab:CreateToggle({
+   Name = "Mostrar Nombre y Distancia del Objeto",
+   CurrentValue = false,
+   Callback = function(Value) espItemNamesEnabled = Value end,
+})
+
+ESPItemsTab:CreateInput({
+   Name = "Palabras Clave (Separa con comas)",
+   PlaceholderText = "oro, gold, diamante, coin...",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text)
+      itemKeywords = {}
+      for word in string.gmatch(Text, "[^,]+") do
+         local cleaned = word:match("^%s*(.-)%s*$")
+         if cleaned and cleaned ~= "" then
+            table.insert(itemKeywords, string.lower(cleaned))
+         end
+      end
+   end,
+})
+
+--[========================================================--
+--       SISTEMA ESP ULTRA OPTIMIZADO (EVENT DRIVEN)       --
+--[========================================================--
+
+local itemCache = {}
+local npcCache = {}
+local espObjects = {}
+
+local function isItemMatch(obj)
+	if not (obj:IsA("BasePart") or obj:IsA("Model")) then return false end
+	if obj:FindFirstChildOfClass("Humanoid") then return false end
+	if obj == player.Character or (player.Character and obj:IsDescendantOf(player.Character)) then return false end
+
+	local textToSearch = string.lower(obj.Name)
+	local prompt = obj:FindFirstChildOfClass("ProximityPrompt") or obj:FindFirstChild("ProximityPrompt", true)
+	if prompt then
+		textToSearch = textToSearch .. " " .. string.lower(prompt.ObjectText) .. " " .. string.lower(prompt.ActionText)
+	end
+
+	for _, kw in ipairs(itemKeywords) do
+		if string.find(textToSearch, kw, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+local function trackInstance(inst)
+	if inst:IsA("Model") and inst:FindFirstChildOfClass("Humanoid") then
+		local isPlayer = Players:GetPlayerFromCharacter(inst) ~= nil
+		if not isPlayer then 
+			npcCache[inst] = true 
+		end
+	elseif isItemMatch(inst) then
+		itemCache[inst] = true
+	end
+end
+
+local function untrackInstance(inst)
+	npcCache[inst] = nil
+	itemCache[inst] = nil
+	if espObjects[inst] then
+		if espObjects[inst].hl then espObjects[inst].hl:Destroy() end
+		if espObjects[inst].bb then espObjects[inst].bb:Destroy() end
+		espObjects[inst] = nil
+	end
+end
+
+-- Indexación inicial por eventos
+for _, desc in ipairs(Workspace:GetDescendants()) do
+	trackInstance(desc)
+end
+
+Workspace.DescendantAdded:Connect(trackInstance)
+Workspace.DescendantRemoving:Connect(untrackInstance)
+
+-- Bucle de renderizado ultraligero por RenderStepped
+RunService.RenderStepped:Connect(function()
+	local rainbowColor = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+	local itemColor = Color3.fromRGB(255, 215, 0)
+
+	local myChar = player.Character
+	local myRoot = myChar and (myChar:FindFirstChild("HumanoidRootPart") or myChar:FindFirstChild("Torso"))
+
+	-- 1. Renderizar Ítems
+	if espItemsEnabled then
+		for item, _ in pairs(itemCache) do
+			if item and item.Parent then
+				local root = item:IsA("BasePart") and item or (item.PrimaryPart or item:FindFirstChildOfClass("BasePart"))
+				if root then
+					if not espObjects[item] then espObjects[item] = {} end
+					
+					if not espObjects[item].hl then
+						local hl = Instance.new("Highlight")
+						hl.Adornee = item
+						hl.FillTransparency = 0.4
+						hl.OutlineTransparency = 0
+						hl.Parent = espFolder
+						espObjects[item].hl = hl
+					end
+					espObjects[item].hl.FillColor = itemColor
+					espObjects[item].hl.OutlineColor = itemColor
+
+					if espItemNamesEnabled then
+						if not espObjects[item].bb then
+							local bb = Instance.new("BillboardGui")
+							bb.Size = UDim2.new(0, 150, 0, 40)
+							bb.StudsOffset = Vector3.new(0, 2, 0)
+							bb.AlwaysOnTop = true
+
+							local lbl = Instance.new("TextLabel")
+							lbl.Name = "Label"
+							lbl.Size = UDim2.new(1, 0, 1, 0)
+							lbl.BackgroundTransparency = 1
+							lbl.Font = Enum.Font.GothamBold
+							lbl.TextSize = 11
+							lbl.TextStrokeTransparency = 0
+							lbl.Parent = bb
+
+							bb.Adornee = root
+							bb.Parent = espFolder
+							espObjects[item].bb = bb
+						end
+
+						local dist = myRoot and math.floor((root.Position - myRoot.Position).Magnitude) or 0
+						espObjects[item].bb.Label.TextColor3 = itemColor
+						espObjects[item].bb.Label.Text = "[ÍTEM] " .. item.Name .. "\n[" .. dist .. "m]"
+					elseif espObjects[item].bb then
+						espObjects[item].bb:Destroy()
+						espObjects[item].bb = nil
+					end
+				end
+			end
+		end
+	else
+		for item, data in pairs(espObjects) do
+			if itemCache[item] then
+				if data.hl then data.hl:Destroy() end
+				if data.bb then data.bb:Destroy() end
+				espObjects[item] = nil
+			end
+		end
+	end
+
+	-- 2. Renderizar NPCs
+	if espNpcEnabled or espNpcNamesEnabled or espSelectedNpcsEnabled or espSelectedNpcsNamesEnabled then
+		for npc, _ in pairs(npcCache) do
+			if npc and npc.Parent then
+				local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc:FindFirstChildOfClass("BasePart")
+				local isSel = selectedNpcs[npc]
+				local showHl = espNpcEnabled or (espSelectedNpcsEnabled and isSel)
+				local showTxt = espNpcNamesEnabled or (espSelectedNpcsNamesEnabled and isSel)
+
+				if root and (showHl or showTxt) then
+					if not espObjects[npc] then espObjects[npc] = {} end
+
+					if showHl then
+						if not espObjects[npc].hl then
+							local hl = Instance.new("Highlight")
+							hl.Adornee = npc
+							hl.FillTransparency = 0.4
+							hl.OutlineTransparency = 0
+							hl.Parent = espFolder
+							espObjects[npc].hl = hl
+						end
+						espObjects[npc].hl.FillColor = rainbowColor
+						espObjects[npc].hl.OutlineColor = rainbowColor
+					elseif espObjects[npc].hl then
+						espObjects[npc].hl:Destroy()
+						espObjects[npc].hl = nil
+					end
+
+					if showTxt then
+						if not espObjects[npc].bb then
+							local bb = Instance.new("BillboardGui")
+							bb.Size = UDim2.new(0, 150, 0, 40)
+							bb.StudsOffset = Vector3.new(0, 3, 0)
+							bb.AlwaysOnTop = true
+
+							local lbl = Instance.new("TextLabel")
+							lbl.Name = "Label"
+							lbl.Size = UDim2.new(1, 0, 1, 0)
+							lbl.BackgroundTransparency = 1
+							lbl.Font = Enum.Font.GothamBold
+							lbl.TextSize = 12
+							lbl.TextStrokeTransparency = 0
+							lbl.Parent = bb
+
+							bb.Adornee = root
+							bb.Parent = espFolder
+							espObjects[npc].bb = bb
+						end
+
+						local dist = myRoot and math.floor((root.Position - myRoot.Position).Magnitude) or 0
+						espObjects[npc].bb.Label.TextColor3 = rainbowColor
+						espObjects[npc].bb.Label.Text = "[NPC] " .. npc.Name .. "\n[" .. dist .. "m]"
+					elseif espObjects[npc].bb then
+						espObjects[npc].bb:Destroy()
+						espObjects[npc].bb = nil
+					end
+				end
+			end
+		end
+	end
+
+	-- 3. Renderizar Jugadores
+	if espEnabled or espPlayerNamesEnabled or espSelectedPlayersEnabled or espSelectedPlayersNamesEnabled then
+		for _, otherPlayer in ipairs(Players:GetPlayers()) do
+			if otherPlayer ~= player and otherPlayer.Character then
+				local char = otherPlayer.Character
+				local root = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso")
+				local isSel = selectedPlayers[otherPlayer]
+				local showHl = espEnabled or (espSelectedPlayersEnabled and isSel)
+				local showTxt = espPlayerNamesEnabled or (espSelectedPlayersNamesEnabled and isSel)
+
+				if root and (showHl or showTxt) then
+					if not espObjects[char] then espObjects[char] = {} end
+
+					if showHl then
+						if not espObjects[char].hl then
+							local hl = Instance.new("Highlight")
+							hl.Adornee = char
+							hl.FillTransparency = 0.4
+							hl.OutlineTransparency = 0
+							hl.Parent = espFolder
+							espObjects[char].hl = hl
+						end
+						espObjects[char].hl.FillColor = rainbowColor
+						espObjects[char].hl.OutlineColor = rainbowColor
+					elseif espObjects[char].hl then
+						espObjects[char].hl:Destroy()
+						espObjects[char].hl.hl = nil
+					end
+
+					if showTxt then
+						if not espObjects[char].bb then
+							local bb = Instance.new("BillboardGui")
+							bb.Size = UDim2.new(0, 150, 0, 40)
+							bb.StudsOffset = Vector3.new(0, 3, 0)
+							bb.AlwaysOnTop = true
+
+							local lbl = Instance.new("TextLabel")
+							lbl.Name = "Label"
+							lbl.Size = UDim2.new(1, 0, 1, 0)
+							lbl.BackgroundTransparency = 1
+							lbl.Font = Enum.Font.GothamBold
+							lbl.TextSize = 12
+							lbl.TextStrokeTransparency = 0
+							lbl.Parent = bb
+
+							bb.Adornee = root
+							bb.Parent = espFolder
+							espObjects[char].bb = bb
+						end
+
+						local dist = myRoot and math.floor((root.Position - myRoot.Position).Magnitude) or 0
+						espObjects[char].bb.Label.TextColor3 = rainbowColor
+						espObjects[char].bb.Label.Text = otherPlayer.DisplayName .. "\n[" .. dist .. "m]"
+					elseif espObjects[char].bb then
+						espObjects[char].bb:Destroy()
+						espObjects[char].bb = nil
+					end
+				end
+			end
+		end
+	end
+end)
+
+--[========================================================--
+--                 PESTAÑA LISTAS SERVIDOR                 --
+--[========================================================--
+
+ListsTab:CreateSection("Selección de Jugadores")
+for _, p in ipairs(Players:GetPlayers()) do
+	if p ~= player then
+		ListsTab:CreateToggle({
+			Name = p.DisplayName .. " (@" .. p.Name .. ")",
+			CurrentValue = false,
+			Callback = function(Value)
+				selectedPlayers[p] = Value or nil
+			end,
+		})
+	end
+end
+
+ListsTab:CreateSection("Selección de NPCs")
+for npc, _ in pairs(npcCache) do
+	if npc and npc.Parent then
+		ListsTab:CreateToggle({
+			Name = "NPC: " .. npc.Name,
+			CurrentValue = false,
+			Callback = function(Value)
+				selectedNpcs[npc] = Value or nil
+			end,
+		})
+	end
+end
+
+Rayfield:Notify({
+   Title = "Notificación",
+   Content = "¡Script de " .. gameTitle .. " cargado con éxito!",
+   Duration = 5,
+   Image = 4483362458,
+})
